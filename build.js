@@ -54,17 +54,22 @@ function writeHtml(route, html) {
    API
 ========================= */
 function writeApi(route, data) {
-  const clean = route.replace(/^\/+/, ''); // remove barra inicial
+  const clean = route.replace(/^\/api\/?/, ''); // remove /api do início
   const isParent = apiParents.has(route);
 
   let file;
   if (isParent) {
     // posts.json dentro de dist/api
     const segments = clean.split('/');
-    const parentName = segments[segments.length - 1] || 'index';
-    file = path.join(DIST, 'api', ...segments.slice(0, -1), `${parentName}.json`);
+    const parentName = segments.pop() || 'index'; // último segmento = nome do arquivo
+    const dir = path.join(DIST, 'api', ...segments);
+    ensureDir(dir);
+    file = path.join(dir, `${parentName}.json`);
   } else {
-    file = path.join(DIST, 'api', ...clean.split('/')) + '.json';
+    const dir = path.join(DIST, 'api', ...clean.split('/').slice(0, -1));
+    ensureDir(dir);
+    const last = clean.split('/').pop();
+    file = path.join(dir, `${last}.json`);
   }
 
   const json = JSON.stringify(data, null, 2);
@@ -77,7 +82,7 @@ function writeApi(route, data) {
   );
 
   if (isParent) {
-    console.log(`  (Resumo da pasta: ${file}. Para itens individuais, use /${clean}/id.json)`);
+    console.log(`  (Resumo da pasta: ${file}. Para itens individuais, use /api/${clean}/id.json)`);
   }
 }
 
