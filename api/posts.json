@@ -1,0 +1,70 @@
+[
+  {
+    "id": 1,
+    "title": "Post Aleatório 1",
+    "content": "Conteúdo do post 1",
+    "author": {
+      "id": 101,
+      "name": "João Silva",
+      "email": "joao@example.com"
+    },
+    "tags": ["javascript", "nodejs", "express"],
+    "comments": [
+      {
+        "id": 1001,
+        "user": "Maria",
+        "message": "Ótimo post!",
+        "likes": 5
+      },
+      {
+        "id": 1002,
+        "user": "Pedro",
+        "message": "Muito útil, obrigado!",
+        "likes": 3
+      }
+    ],
+    "category": {
+      "id": 10,
+      "name": "Programação",
+      "subcategories": [
+        {
+          "id": 101,
+          "name": "Backend"
+        },
+        {
+          "id": 102,
+          "name": "Frontend"
+        }
+      ]
+    }
+  },
+  {
+    "id": 2,
+    "title": "Post Aleatório 2",
+    "content": "Conteúdo do post 2",
+    "author": {
+      "id": 102,
+      "name": "Ana Souza",
+      "email": "ana@example.com"
+    },
+    "tags": ["api", "rest", "json"],
+    "comments": [
+      {
+        "id": 1003,
+        "user": "Carlos",
+        "message": "Muito bom, valeu!",
+        "likes": 4
+      }
+    ],
+    "category": {
+      "id": 20,
+      "name": "Tecnologia",
+      "subcategories": [
+        {
+          "id": 201,
+          "name": "Infraestrutura"
+        }
+      ]
+    }
+  }
+]
