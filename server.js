@@ -45,7 +45,7 @@ function registerPages(dir, baseRoute = '') {
         .replace(/\.ejs$/, '');
 
       app.get(route, (req, res) => {
-        res.render(viewPath, { title: 'Minha Página' });
+        res.render(viewPath, { require });
       });
 
       console.log(`Página registrada: GET ${route} -> ${viewPath}`);

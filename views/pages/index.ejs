@@ -1,5 +1,49 @@
-<h1>Rota index aqui!</h1>
+<% 
+  const posts = require('./api/posts/index.js'); 
+%>
 
-<%= 3 + 5 %>
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blog</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
 
-<link rel="stylesheet" href="style.css">
+  <header>
+    <h1>Blog - Posts</h1>
+  </header>
+
+  <main>
+    <section>
+      <% if (posts && posts.length > 0) { %>
+        <ul>
+          <% posts.forEach(post => { %>
+            <li class="post">
+              <h2><%= post.title %></h2>
+              <p><%= post.content %></p>
+              <p><strong>Autor:</strong> <%= post.author.name %></p>
+              <p><strong>Comentários:</strong></p>
+              <ul>
+                <% post.comments.forEach(comment => { %>
+                  <li><%= comment.user %>: <%= comment.message %> (Likes: <%= comment.likes %>)</li>
+                <% }) %>
+              </ul>
+              <hr>
+            </li>
+          <% }) %>
+        </ul>
+      <% } else { %>
+        <p>Nenhum post encontrado.</p>
+      <% } %>
+    </section>
+  </main>
+
+  <footer>
+    <p>© 2025 Meu Blog</p>
+  </footer>
+
+</body>
+</html>

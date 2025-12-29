@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "nodemon --watch ./ --ext js,json,ts,ejs server.js",
+    "dev": "node server.js",
     "build": "node build.js"
   },
   "keywords": [],
@@ -14,6 +14,8 @@
   "dependencies": {
     "ejs": "^3.1.10",
     "express": "^5.2.1",
+    "fs-extra": "^11.3.3",
+    "hasha": "^7.0.0",
     "html-minifier": "^4.0.0"
   }
 }
