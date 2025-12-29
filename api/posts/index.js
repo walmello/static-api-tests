@@ -20,7 +20,7 @@ module.exports = () => {
     { id: 30, name: 'Design', subcategories: [{ id: 301, name: 'UI' }, { id: 302, name: 'UX' }] }
   ];
 
-  for(let i=1; i<=50; i++){
+  for(let i=1; i<=51; i++){
     const author = authors[i % authors.length];
     const tags = [tagsPool[i % tagsPool.length], tagsPool[(i+3) % tagsPool.length]];
     const comments = [
