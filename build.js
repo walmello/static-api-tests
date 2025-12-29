@@ -1,99 +1,248 @@
-const fs = require('fs');
+const express = require('express');
 const path = require('path');
-const ejs = require('ejs');
+const fs = require('fs');
+const crypto = require('crypto');
 
-// Pastas
-const PAGES_DIR = path.join(__dirname, 'views', 'pages');
-const PUBLIC_DIR = path.join(__dirname, 'public');
-const DIST_DIR = path.join(__dirname, 'dist');
+const app = express();
+const DIST = path.join(__dirname, 'dist');
 
-// Limpar dist
-if (fs.existsSync(DIST_DIR)) fs.rmSync(DIST_DIR, { recursive: true });
-fs.mkdirSync(DIST_DIR, { recursive: true });
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
-// Copiar arquivos estáticos
-function copyStatic(src, dest) {
-    if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-    const items = fs.readdirSync(src);
-    items.forEach(item => {
-        const srcPath = path.join(src, item);
-        const destPath = path.join(dest, item);
-        const stat = fs.statSync(srcPath);
-        if (stat.isDirectory()) {
-            copyStatic(srcPath, destPath);
-        } else {
-            fs.copyFileSync(srcPath, destPath);
-        }
-    });
-}
-copyStatic(PUBLIC_DIR, DIST_DIR);
+const EXCLUDE_FOLDERS = ['partials'];
+const pages = [];
+const apiRoutes = new Map();
+const apiParents = new Set();
+const validFiles = new Set(); // arquivos válidos para limpeza
 
-// Função para gerar HTML e JSON
-function renderPages(dir, baseRoute = '') {
-    const files = fs.readdirSync(dir);
-    
-    files.forEach(file => {
-        const fullPath = path.join(dir, file);
-        const stat = fs.statSync(fullPath);
-        
-        if (stat.isDirectory()) {
-            renderPages(fullPath, path.join(baseRoute, file));
-        } else {
-            const ext = path.extname(file);
-            
-            // EJS -> HTML
-            if (ext === '.ejs') {
-                let route = path.join(baseRoute, path.basename(file, '.ejs'));
-                if (file === 'index.ejs') route = baseRoute || '/';
-                route = route.replace(/\\/g, '/');
-                
-                ejs.renderFile(fullPath, { title: 'Minha Página' }, {}, (err, str) => {
-                    if (err) throw err;
-                    
-                    let outputPath;
-                    if (route === '/') {
-                        outputPath = path.join(DIST_DIR, 'index.html');
-                    } else {
-                        const folder = path.join(DIST_DIR, route);
-                        if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
-                        outputPath = path.join(folder, 'index.html');
-                    }
-                    
-                    fs.writeFileSync(outputPath, str, 'utf8');
-                    console.log(`HTML gerado: ${outputPath}`);
-                });
-            }
-            
-            // JS -> JSON
-            else if (ext === '.js') {
-                const route = path.join(baseRoute, path.basename(file, '.js')).replace(/\\/g, '/');
-                const handler = require(fullPath);
-                
-                if (typeof handler !== 'function') {
-                    console.warn(`O endpoint ${fullPath} não é uma função! Gerando {}.`);
-                }
-                
-                let data;
-                try {
-                    data = handler(); // executa a função e pega o resultado
-                } catch (err) {
-                    console.error(`Erro ao executar endpoint ${fullPath}:`, err);
-                    data = {};
-                }
-                
-                const jsonStr = JSON.stringify(data || {}, null, 2);
-                
-                const folder = path.join(DIST_DIR, route);
-                if (!fs.existsSync(folder)) fs.mkdirSync(folder, { recursive: true });
-                const outputPath = path.join(folder, 'index.json');
-                fs.writeFileSync(outputPath, jsonStr, 'utf8');
-                
-                console.log(`JSON gerado: ${outputPath}`);
-            }
-        }
-    });
+/* =========================
+   UTIL
+========================= */
+function ensureDir(dir) {
+  fs.mkdirSync(dir, { recursive: true });
 }
 
-// Executa build
-renderPages(PAGES_DIR);
-console.log('Build concluído! 🎉');
+function hash(content) {
+  return crypto.createHash('sha1').update(content).digest('hex');
+}
+
+function writeIfChanged(file, content) {
+  validFiles.add(file); // marca como arquivo válido
+  if (fs.existsSync(file)) {
+    const old = fs.readFileSync(file, 'utf8');
+    if (hash(old) === hash(content)) return false;
+  }
+  ensureDir(path.dirname(file));
+  fs.writeFileSync(file, content);
+  return true;
+}
+
+/* =========================
+   HTML
+========================= */
+function writeHtml(route, html) {
+  const file =
+    route === '/'
+      ? path.join(DIST, 'index.html') // raiz
+      : path.join(DIST, route, 'index.html'); // subpasta
+
+  const changed = writeIfChanged(file, html);
+  console.log(changed ? `✔ HTML ${route}` : `↺ HTML ${route}`);
+}
+
+/* =========================
+   API
+========================= */
+function writeApi(route, data) {
+  const clean = route.replace(/^\/+/, '');
+  const isParent = apiParents.has(route);
+
+  const file = isParent
+    ? path.join(DIST, clean, 'index.json')
+    : path.join(DIST, `${clean}.json`);
+
+  const json = JSON.stringify(data, null, 2);
+  const changed = writeIfChanged(file, json);
+
+  console.log(changed ? `✔ API ${route}` : `↺ API ${route}`);
+}
+
+/* =========================
+   PAGES
+========================= */
+function collectPages(dir, baseRoute = '') {
+  for (const item of fs.readdirSync(dir)) {
+    const full = path.join(dir, item);
+    const stat = fs.statSync(full);
+
+    if (stat.isDirectory()) {
+      if (!EXCLUDE_FOLDERS.includes(item)) {
+        collectPages(full, path.join(baseRoute, item));
+      }
+    } else if (item.endsWith('.ejs')) {
+      let route = path.join(baseRoute, item.replace('.ejs', ''));
+      if (item === 'index.ejs') route = baseRoute;
+
+      route = '/' + route.replace(/\\/g, '/');
+      if (route === '/undefined') route = '/';
+
+      const view = path
+        .relative(app.get('views'), full)
+        .replace(/\\/g, '/')
+        .replace('.ejs', '');
+
+      pages.push({ route, view });
+    }
+  }
+}
+
+function buildPages() {
+  pages.forEach(p => {
+    app.render(p.view, { title: 'Minha Página' }, (err, html) => {
+      if (err) throw err;
+      writeHtml(p.route, html);
+    });
+  });
+}
+
+/* =========================
+   API COLETA
+========================= */
+function collectApi(route, data) {
+  apiRoutes.set(route, data);
+
+  if (Array.isArray(data)) {
+    data.forEach((item, i) => {
+      const id = item?.id ?? i;
+      apiParents.add(route); // marca como pai
+      collectApi(`${route}/${id}`, item);
+    });
+  } else if (data && typeof data === 'object') {
+    for (const key in data) {
+      apiParents.add(route); // marca como pai
+      collectApi(`${route}/${key}`, data[key]);
+    }
+  }
+}
+
+function loadApi(dir, baseRoute = '/api') {
+  for (const item of fs.readdirSync(dir)) {
+    const full = path.join(dir, item);
+    const stat = fs.statSync(full);
+
+    if (stat.isDirectory()) {
+      loadApi(full, path.join(baseRoute, item));
+    } else {
+      const ext = path.extname(item);
+      const name = item.replace(ext, '');
+
+      const route =
+        item === 'index.js' || item === 'index.json'
+          ? baseRoute
+          : path.join(baseRoute, name);
+
+      const normalized = route.replace(/\\/g, '/');
+
+      if (ext === '.js') {
+        const mod = require(full);
+        const data = typeof mod === 'function' ? mod() : mod;
+        collectApi(normalized, data);
+      }
+
+      if (ext === '.json') {
+        const data = JSON.parse(fs.readFileSync(full, 'utf8'));
+        collectApi(normalized, data);
+      }
+    }
+  }
+}
+
+function buildApi() {
+  for (const [route, data] of apiRoutes.entries()) {
+    writeApi(route, data);
+  }
+}
+
+/* =========================
+   LIMPEZA DE ÓRFÃOS
+========================= */
+function cleanOrphanFiles(dir) {
+  if (!fs.existsSync(dir)) return;
+
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+
+    if (entry.isDirectory()) {
+      cleanOrphanFiles(fullPath);
+
+      // remover pasta se ficou vazia
+      if (fs.existsSync(fullPath) && fs.readdirSync(fullPath).length === 0) {
+        fs.rmdirSync(fullPath);
+      }
+    } else if (entry.isFile()) {
+      if (!validFiles.has(fullPath)) {
+        fs.unlinkSync(fullPath);
+        console.log(`🗑 Arquivo órfão removido: ${fullPath}`);
+      }
+    }
+  }
+}
+
+/* =========================
+   PUBLIC OTIMIZADO
+========================= */
+function copyPublicOptimized() {
+  const src = path.join(__dirname, 'public');
+  const dest = path.join(DIST, 'public');
+  if (!fs.existsSync(src)) return;
+
+  const copyRecursive = (srcDir, destDir) => {
+    ensureDir(destDir);
+    for (const entry of fs.readdirSync(srcDir, { withFileTypes: true })) {
+      const srcPath = path.join(srcDir, entry.name);
+      const destPath = path.join(destDir, entry.name);
+
+      if (entry.isDirectory()) {
+        copyRecursive(srcPath, destPath);
+      } else {
+        let shouldCopy = true;
+        if (fs.existsSync(destPath)) {
+          const srcHash = hash(fs.readFileSync(srcPath));
+          const destHash = hash(fs.readFileSync(destPath));
+          if (srcHash === destHash) shouldCopy = false; // arquivos idênticos → não copiar
+        }
+        if (shouldCopy) fs.copyFileSync(srcPath, destPath);
+        validFiles.add(destPath);
+      }
+    }
+  };
+
+  copyRecursive(src, dest);
+  console.log(`✔ Public copiado para ${dest} (otimizado)`);
+}
+
+/* =========================
+   BUILD
+========================= */
+ensureDir(DIST);
+
+// HTML
+collectPages(path.join(__dirname, 'views/pages'));
+buildPages();
+
+// API
+const apiDir = path.join(__dirname, 'api');
+if (fs.existsSync(apiDir)) {
+  loadApi(apiDir);
+  buildApi();
+}
+
+// Public
+copyPublicOptimized();
+
+// Limpeza de órfãos
+cleanOrphanFiles(DIST);
+
+console.log('\n⚡ BUILD FINALIZADO (incremental + limpeza de órfãos + public otimizado)');

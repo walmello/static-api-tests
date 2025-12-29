@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 module.exports = () => {
-  const postsPath = path.join(__dirname, '..' ,'posts.json');
+  const postsPath = path.join(__dirname, 'index.json');
 
   let posts = [];
   try {
