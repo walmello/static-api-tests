@@ -54,18 +54,33 @@ function writeHtml(route, html) {
    API
 ========================= */
 function writeApi(route, data) {
-  const clean = route.replace(/^\/+/, '');
+  const clean = route.replace(/^\/+/, ''); // remove barra inicial
   const isParent = apiParents.has(route);
 
-  const file = isParent
-    ? path.join(DIST, clean, 'index.json')
-    : path.join(DIST, `${clean}.json`);
+  let file;
+  if (isParent) {
+    // posts.json dentro de dist/api
+    const segments = clean.split('/');
+    const parentName = segments[segments.length - 1] || 'index';
+    file = path.join(DIST, 'api', ...segments.slice(0, -1), `${parentName}.json`);
+  } else {
+    file = path.join(DIST, 'api', ...clean.split('/')) + '.json';
+  }
 
   const json = JSON.stringify(data, null, 2);
   const changed = writeIfChanged(file, json);
 
-  console.log(changed ? `✔ API ${route}` : `↺ API ${route}`);
+  console.log(
+    changed
+      ? `✔ API ${route} -> ${path.relative(DIST, file)}`
+      : `↺ API ${route} (sem mudanças)`
+  );
+
+  if (isParent) {
+    console.log(`  (Resumo da pasta: ${file}. Para itens individuais, use /${clean}/id.json)`);
+  }
 }
+
 
 /* =========================
    PAGES
